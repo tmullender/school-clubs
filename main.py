@@ -5,6 +5,7 @@ import datetime
 import sys
 import re
 
+MAX_REQUESTS = 3
 REPEAT_CLUBS = ['Fitness Club', 'Art and Craft', 'ICT Club', 'French',
                 'Needlecraft', 'iMovie Club', 'Cookery', 'Spanish']
 
@@ -39,6 +40,9 @@ class Term:
     def __repr__(self):
         return str(self.id) + ' ' + str(self.allocations)
 
+    def allocated(self):
+        return " and ".join([str(x) for x in self.allocations])
+
 
 class Response:
     def __init__(self, fields):
@@ -47,9 +51,9 @@ class Response:
         self.group = fields[2]
         self.year = int(self.group[1:2])
         self.terms = []
-        count = (len(fields) - 3)/3
+        count = (len(fields) - 3)/MAX_REQUESTS
         for i in range(count):
-            self.terms.append(Term(i + 1, fields[3*i+3:3*i+6]))
+            self.terms.append(Term(i + 1, fields[MAX_REQUESTS*i+3:MAX_REQUESTS*i+3+MAX_REQUESTS]))
 
     def __repr__(self):
         return self.name.title() + ' (' + self.group + ')'
@@ -85,7 +89,7 @@ def parse_file(path):
 
 def allocate(requests):
     allocations = {}
-    for i in range(3):
+    for i in range(MAX_REQUESTS):
         for request in list(requests):
             for term in request.terms:
                 for club in list(term.requests):
@@ -106,9 +110,23 @@ def process_requests(file_path):
     return allocate(sorted(parse_file(file_path)))
 
 
+def write_people(allocated_people):
+    with open("pupils.csv", "wb") as pw:
+        writer = csv.writer(pw)
+        for person in allocated_people:
+            writer.writerow([person.name.title(), person.group] + [term.allocated() for term in person.terms])
+
+
+def write_clubs(allocated_clubs):
+    with open("clubs.csv", "wb") as cw:
+        writer = csv.writer(cw)
+        keys = allocated_clubs.keys()
+        writer.writerow(keys)
+        for row in map(None, *allocated_clubs.values()):
+            writer.writerow(row)
+
+
 if __name__ == "__main__":
     (people, clubs) = process_requests(sys.argv[1])
-    for allocation in sorted(clubs.keys()):
-        print allocation, '=', len(clubs[allocation]), clubs[allocation]
-    for result in people:
-        print result.name.title(), result.group, result.terms
+    write_people(people)
+    write_clubs(clubs)

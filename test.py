@@ -19,7 +19,7 @@ def verify(people, clubs):
             assert len(days) == len(term.allocations)
     for club in clubs:
         allocated = clubs[club]
-        assert len(allocated) <= main.CLUB_LIMITS.get(club, 12)
+        assert len(allocated) <= main.CLUB_LIMITS.get(club, main.DEFAULT_CLUB_LIMIT)
         assert len(allocated) == len(set(allocated))
 
 
