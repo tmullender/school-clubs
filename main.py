@@ -8,8 +8,8 @@ import re
 REPEAT_CLUBS = ['Fitness Club', 'Art and Craft', 'ICT Club', 'French',
                 'Needlecraft', 'iMovie Club', 'Cookery', 'Spanish']
 
-CLUB_LIMITS = {'Fitness Club': 12,
-               }
+DEFAULT_CLUB_LIMIT = 20
+CLUB_LIMITS = {}
 
 
 class Club:
@@ -30,16 +30,26 @@ class Club:
         return hash(self.name + self.day)
 
 
+class Term:
+    def __init__(self, term_id, fields):
+        self.id = term_id
+        self.requests = [Club(club) for club in filter(lambda x: len(x) > 0, fields)]
+        self.allocations = []
+
+    def __repr__(self):
+        return str(self.id) + ' ' + str(self.allocations)
+
+
 class Response:
     def __init__(self, fields):
         self.submitted = datetime.datetime.strptime(fields[0].upper()[:-4], "%Y/%m/%d %I:%M:%S %p")
         self.name = fields[1].lower()
         self.group = fields[2]
         self.year = int(self.group[1:2])
-        self.requests_one = [Club(club) for club in filter(lambda x: len(x) > 0, fields[3:6])]
-        self.requests_two = [Club(club) for club in filter(lambda x: len(x) > 0, fields[6:9])]
-        self.allocations_one = []
-        self.allocations_two = []
+        self.terms = []
+        count = (len(fields) - 3)/3
+        for i in range(count):
+            self.terms.append(Term(i + 1, fields[3*i+3:3*i+6]))
 
     def __repr__(self):
         return self.name.title() + ' (' + self.group + ')'
@@ -56,17 +66,10 @@ class Response:
     def __hash__(self):
         return hash(self.name + self.group)
 
-    def allocate_one(self, club):
-        if (club.name not in REPEAT_CLUBS or club not in self.allocations_two) \
-                and not filter(lambda x: x.day == club.day, self.allocations_one):
-            self.allocations_one.append(club)
-            return True
-        return False
-
-    def allocate_two(self, club):
-        if (club.name not in REPEAT_CLUBS or club not in self.allocations_one) \
-                and not filter(lambda x: x.day == club.day, self.allocations_two):
-            self.allocations_two.append(club)
+    def allocate(self, term, club):
+        if (club.name not in REPEAT_CLUBS or club.name not in [y.name for x in self.terms for y in x.allocations]) \
+                and not filter(lambda z: z.day == club.day, term.allocations):
+            term.allocations.append(club)
             return True
         return False
 
@@ -80,47 +83,32 @@ def parse_file(path):
     return responses
 
 
-def allocate_one(requests):
+def allocate(requests):
     allocations = {}
     for i in range(3):
         for request in list(requests):
-            for club in list(request.requests_one):
-                if club in allocations:
-                    count = len(allocations[club])
-                    if count < CLUB_LIMITS.get(club.name, 12) and request.allocate_one(club):
-                        allocations[club].append(request)
+            for term in request.terms:
+                for club in list(term.requests):
+                    key = (term.id, club)
+                    if key in allocations:
+                        count = len(allocations[key])
+                        if count < CLUB_LIMITS.get(club.name, DEFAULT_CLUB_LIMIT) \
+                                and request.allocate(term, club):
+                            allocations[key].append(request)
+                            break
+                    elif request.allocate(term, club):
+                        allocations[key] = [request]
                         break
-                elif request.allocate_one(club):
-                    allocations[club] = [request]
-                    break
-    return allocations
+    return requests, allocations
 
 
-def allocate_two(requests):
-    allocations = {}
-    for i in range(3):
-        for request in list(requests):
-            for club in list(request.requests_two):
-                if club in allocations:
-                    count = len(allocations[club])
-                    if count < CLUB_LIMITS.get(club.name, 12) and request.allocate_two(club):
-                        allocations[club].append(request)
-                        break
-                elif request.allocate_two(club):
-                    allocations[club] = [request]
-                    break
-    return allocations
+def process_requests(file_path):
+    return allocate(sorted(parse_file(file_path)))
 
 
 if __name__ == "__main__":
-    requested = sorted(parse_file(sys.argv[1]))
-    result = allocate_one(requested)
-    print 'First Term'
-    for allocation in sorted(result.keys()):
-        print allocation, '=', result[allocation]
-    result = allocate_two(requested)
-    print 'Second Term'
-    for allocation in sorted(result.keys()):
-        print allocation, '=', result[allocation]
-    for result in requested:
-        print result.name.title(), result.allocations_one, result.allocations_two
+    (people, clubs) = process_requests(sys.argv[1])
+    for allocation in sorted(clubs.keys()):
+        print allocation, '=', len(clubs[allocation]), clubs[allocation]
+    for result in people:
+        print result.name.title(), result.group, result.terms
