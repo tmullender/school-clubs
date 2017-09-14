@@ -24,5 +24,5 @@ def verify(people, clubs):
 
 
 if __name__ == "__main__":
-    (people, clubs) = main.process_requests(sys.argv[1])
+    (people, clubs) = main.process_requests(sys.argv[1], sys.argv[2])
     verify(people, clubs)

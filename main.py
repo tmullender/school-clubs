@@ -2,6 +2,7 @@
 
 import csv
 import datetime
+import logging
 import sys
 import re
 
@@ -9,7 +10,7 @@ MAX_REQUESTS = 3
 REPEAT_CLUBS = ['Fitness Club', 'Art and Craft', 'ICT Club', 'French',
                 'Needlecraft', 'iMovie Club', 'Cookery', 'Spanish']
 
-DEFAULT_CLUB_LIMIT = 20
+DEFAULT_CLUB_LIMIT = 200
 CLUB_LIMITS = {}
 
 
@@ -71,43 +72,66 @@ class Response:
         return hash(self.name + self.group)
 
     def allocate(self, term, club):
-        if (club.name not in REPEAT_CLUBS or club.name not in [y.name for x in self.terms for y in x.allocations]) \
-                and not filter(lambda z: z.day == club.day, term.allocations):
+        repeatable = club.name not in REPEAT_CLUBS \
+                     or club.name not in [y.name for x in self.terms for y in x.allocations]
+        busy = filter(lambda z: z.day == club.day, term.allocations)
+        logging.debug("Checking allocation repeatable: %s and %s", repeatable, busy)
+        if repeatable and not busy:
             term.allocations.append(club)
             return True
         return False
 
 
-def parse_file(path):
-    responses = set()
-    with open(path, 'rb') as fr:
+def parse_file(request_path, priority_path):
+    responses = []
+    lower_priorities = []
+    with open(priority_path) as pr:
+        for line in pr:
+            lower_priorities.append(line.strip().lower())
+    logging.info('Lower priorities: %s', lower_priorities)
+    with open(request_path, 'rb') as fr:
         for response in csv.reader(fr):
             if response[0] != 'Timestamp':
-                responses.add(Response(response))
-    return responses
+                r = Response(response)
+                if r.name in lower_priorities:
+                    logging.info('Updating submitted to now for %s', r.name)
+                    r.submitted = datetime.datetime.now()
+                responses.append(r)
+    return set(reversed(responses))
 
 
 def allocate(requests):
     allocations = {}
     for i in range(MAX_REQUESTS):
         for request in list(requests):
+            logging.info('Allocating %s %s', request.name, request.group)
             for term in request.terms:
                 for club in list(term.requests):
-                    key = (term.id, club)
-                    if key in allocations:
-                        count = len(allocations[key])
-                        if count < CLUB_LIMITS.get(club.name, DEFAULT_CLUB_LIMIT) \
-                                and request.allocate(term, club):
-                            allocations[key].append(request)
-                            break
-                    elif request.allocate(term, club):
-                        allocations[key] = [request]
+                    if allocate_club(allocations, club, request, term):
+                        logging.info('Allocated %s to %s %s', request.name, term.id, club)
                         break
     return requests, allocations
 
 
-def process_requests(file_path):
-    return allocate(sorted(parse_file(file_path)))
+def allocate_club(allocations, club, request, term):
+    key = (term.id, club)
+    logging.debug('Checking %s', key)
+    allocated = False
+    if key in allocations:
+        count = len(allocations[key])
+        limit = CLUB_LIMITS.get(club.name, DEFAULT_CLUB_LIMIT)
+        logging.debug('Checking space %d < %d', count, limit)
+        if count < limit and request.allocate(term, club):
+            allocations[key].append(request)
+            allocated = True
+    elif request.allocate(term, club):
+        allocations[key] = [request]
+        allocated = True
+    return allocated
+
+
+def process_requests(request_file, priority_list):
+    return allocate(sorted(parse_file(request_file, priority_list)))
 
 
 def write_people(allocated_people):
@@ -127,6 +151,9 @@ def write_clubs(allocated_clubs):
 
 
 if __name__ == "__main__":
-    (people, clubs) = process_requests(sys.argv[1])
+    logging.basicConfig(filename='main.log', level=logging.DEBUG)
+    (people, clubs) = process_requests(sys.argv[1], sys.argv[2])
     write_people(people)
     write_clubs(clubs)
+    for c in clubs:
+        print c, ' = ', len(clubs[c])
