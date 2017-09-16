@@ -1,2 +1,5 @@
 *.iml
 .idea
+*.pyc
+*.csv
+*.log

@@ -10,7 +10,7 @@ MAX_REQUESTS = 3
 REPEAT_CLUBS = ['Fitness Club', 'Art and Craft', 'ICT Club', 'French',
                 'Needlecraft', 'iMovie Club', 'Cookery', 'Spanish']
 
-DEFAULT_CLUB_LIMIT = 200
+DEFAULT_CLUB_LIMIT = 35
 CLUB_LIMITS = {}
 
 
@@ -48,7 +48,7 @@ class Term:
 class Response:
     def __init__(self, fields):
         self.submitted = datetime.datetime.strptime(fields[0].upper()[:-4], "%Y/%m/%d %I:%M:%S %p")
-        self.name = fields[1].lower()
+        self.name = fields[1].strip().lower()
         self.group = fields[2]
         self.year = int(self.group[1:2])
         self.terms = []
@@ -156,4 +156,4 @@ if __name__ == "__main__":
     write_people(people)
     write_clubs(clubs)
     for c in clubs:
-        print c, ' = ', len(clubs[c])
+        print c, ' = ', len(clubs[c]), "FULL" if len(clubs[c]) == CLUB_LIMITS.get(c[1].name) else ""
