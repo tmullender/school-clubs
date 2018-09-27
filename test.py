@@ -11,11 +11,11 @@ def verify(people, clubs):
             days = set()
             for allocation in term.allocations:
                 days.add(allocation.day)
-                if allocation.name in main.REPEAT_CLUBS:
+                if allocation.name in main.CLUBS_REPEAT:
                     assert allocation.name not in names
                     names.append(allocation.name)
                 assert person in clubs[(term.id, allocation)]
-                assert allocation in term.requests
+                assert ((allocation in term.requests) or (term.id == 2 and allocation.name in main.BOTH_TERM_CLUBS))
             assert len(days) == len(term.allocations)
     for club in clubs:
         allocated = clubs[club]

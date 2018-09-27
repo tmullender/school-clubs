@@ -7,10 +7,11 @@ import sys
 import re
 
 MAX_REQUESTS = 3
-REPEAT_CLUBS = ['Fitness Club', 'Art and Craft', 'ICT Club', 'French',
+CLUBS_REPEAT = ['Fitness Club', 'Art and Craft', 'ICT Club', 'French',
                 'Needlecraft', 'iMovie Club', 'Cookery', 'Spanish']
+BOTH_TERM_CLUBS = ['Hockey', 'Netball']
 
-DEFAULT_CLUB_LIMIT = 35
+DEFAULT_CLUB_LIMIT = 30
 CLUB_LIMITS = {}
 
 
@@ -18,9 +19,12 @@ class Club:
     def __init__(self, description):
         self.description = description
         match = re.match("([^(]+) \(([^)]+)\) - (.+)", description)
-        self.name = match.group(1).replace("'", "")
-        self.day = match.group(2)
-        self.teacher = match.group(3)
+        if match:
+            self.name = match.group(1).replace("'", "")
+            self.day = match.group(2).strip()
+            self.teacher = match.group(3)
+        else:
+            logging.error("Unmatched description: " + description)
 
     def __repr__(self):
         return self.name + ' (' + self.day + ')'
@@ -72,10 +76,10 @@ class Response:
         return hash(self.name + self.group)
 
     def allocate(self, term, club):
-        repeatable = club.name not in REPEAT_CLUBS \
+        repeatable = club.name not in CLUBS_REPEAT \
                      or club.name not in [y.name for x in self.terms for y in x.allocations]
         busy = filter(lambda z: z.day == club.day, term.allocations)
-        logging.debug("Checking allocation repeatable: %s and %s", repeatable, busy)
+        logging.debug("Checking allocation repeatable: %s and busy: %s", repeatable, busy)
         if repeatable and not busy:
             term.allocations.append(club)
             return True
@@ -109,6 +113,8 @@ def allocate(requests):
                 for club in list(term.requests):
                     if allocate_club(allocations, club, request, term):
                         logging.info('Allocated %s to %s %s', request.name, term.id, club)
+                        if club.name in BOTH_TERM_CLUBS:
+                            allocate_club(allocations, club, request, request.terms[1])
                         break
     return requests, allocations
 
