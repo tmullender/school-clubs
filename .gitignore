@@ -3,3 +3,5 @@
 *.pyc
 *.csv
 *.log
+.lein-repl-history
+target/
