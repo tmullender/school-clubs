@@ -7,6 +7,8 @@
                  [org.clojure/data.csv "0.1.4"]
                  [clj-time "0.14.4"]
                  [compojure "1.6.1"]
+                 [enlive "1.1.6"]
+                 [ring/ring-codec "1.1.1"]
                  [ring/ring-defaults "0.3.2"]]
   :plugins [[lein-ring "0.12.4"]]
   :ring {:handler school-clubs.handler/app}

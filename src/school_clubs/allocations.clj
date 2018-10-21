@@ -4,7 +4,11 @@
             [clojure.string :as string]
             [clj-time.format :as time]))
 
-(defrecord Response [timestamp name group preferences])
+(def max-preference-count 3)
+
+(defrecord Pupil [timestamp name group requests allocations])
+
+(defrecord Club [name day teacher allocations type size])
 
 
 (defn capitalize-words [s]
@@ -13,10 +17,24 @@
        string/join))
 
 
-(defn create-response [t n g & p]
+(defn create-pupil [t n g & p]
   (let [pt (time/parse (time/formatter "yyyy/MM/dd hh:mm:ss aa ZZZ") t)
-        cn (capitalize-words n)]
-    (Response. pt cn g (partition 3 p)))
+        cn (string/trim (capitalize-words n))]
+    (Pupil. pt cn g (partition 3 p) [[] []]))
+  )
+
+
+(defn club-pattern [description]
+  (rest (re-matches #"([^(]+) [^A-Z]+([a-zA-Z]+)[- )]+(.+)" description)))
+
+
+(defn club-key [[name day teacher]]
+  (str name "-" day))
+
+
+(defn create-club [description]
+  (let [club (club-pattern description)]
+    [(club-key club) (apply ->Club (concat club [[[] []] :repeatable 20]))])
   )
 
 
@@ -28,10 +46,13 @@
 
 
 (defn add-response [collection response]
-  (-> collection
-      (update :pupils #(assoc % (second response) (apply create-response response)))
-      (update :clubs #(into % (drop 3 response)))
-      )
+  (let [choices (drop 3 response)]
+    (-> collection
+        (update :pupils #(assoc % (second response) (apply create-pupil response)))
+        (update :clubs #(into % (filter not-empty choices)))
+        (update :groups #(conj % (nth response 2)))
+        (assoc :terms (/ (count choices) max-preference-count))
+        ))
   )
 
 
@@ -39,9 +60,58 @@
   (sort-by #(.getMillis (.plusYears (:timestamp %) (- (int (second (:group %)))))) < responses))
 
 
-(defn process-responses [input]
-  (let [records (rest (parse input))
-        terms (range 1 (/ (count (first records)) 3))
-        responses (reduce add-response {:pupils {} :clubs #{} :terms terms } records)]
-    (sort-responses (vals (:pupils responses)))))
+(defn process-input [input]
+  (->
+    (->> input
+         (parse)
+         (rest)
+         (reduce add-response {:pupils {} :clubs #{} :groups #{}}))
+    (update :clubs #(into {} (map create-club %)))
+    )
+  )
+
+
+(defn pupil-free [term day pupil]
+  (not-any? #(= day (:day %)) (nth (:allocations pupil) term)))
+
+
+(defn space? [term club]
+  (and club (> (:size club) (count (nth (:allocations club) term)))))
+
+
+(defn allocatable [term clubs pupil request]
+  (let [club-id (club-key (club-pattern request))
+        club (clubs club-id)]
+    (and (space? term club) (pupil-free term (:day club) pupil))))
+
+
+(defn allocate-one [term allocations pupil]
+  (let [request (first (filter (partial allocatable term (:clubs allocations) pupil) (nth (:requests pupil) term)))]
+    (if-not (nil? request)
+      (let [club-id (club-key (club-pattern request))
+            club ((:clubs allocations) club-id)
+            currentPupils (nth (:allocations club) term)
+            currentClubs (nth (:allocations pupil) term)
+            updatedClub (update club :allocations #(assoc % term (conj currentPupils (:name pupil))))
+            updatedPupil (update pupil :allocations #(assoc % term (conj currentClubs club)))]
+        (println "Allocated" (:name club) "to" (:name pupil))
+        (-> allocations
+            (update :pupils #(assoc % (:name pupil) updatedPupil))
+            (update :clubs #(assoc % club-id updatedClub)))
+        )
+      allocations)
+    ))
+
+
+(defn allocate
+  ([requests] (allocate requests 0 0))
+  ([allocations term iteration]
+     (println "Allocating term" (inc term) "and iteration" (inc iteration))
+     (cond
+       (>= term (:terms allocations)) allocations
+       (>= iteration max-preference-count) (allocate allocations (inc term) 0)
+       :else (recur (reduce (partial allocate-one term) allocations (sort-responses (vals (:pupils allocations)))) term (inc iteration))
+       ))
+  )
+
 
