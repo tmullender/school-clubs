@@ -6,10 +6,10 @@
 
 (deftest test-app
   (testing "allocate"
-    (let [response (allocate {:clubs  {"French-Tuesday"     (Club. "French" "Tuesday", "A", [[] []], :repeatable, 3)
-                                       "Spanish-Tuesday"    (Club. "Spanish" "Tuesday", "A", [[] []], :repeatable, 3)
-                                       "German-Wednesday"   (Club. "German", "Wednesday" "A", [[] []], :repeatable, 3)
-                                       "Mandarin-Wednesday" (Club. "Mandarin" "Wednesday", "A", [[] []], :repeatable, 3)}
+    (let [response (allocate {:clubs  {"French-Tuesday"     (Club. "French" "Tuesday", "A", "French - Tuesday", [[] []], :repeatable, 3)
+                                       "Spanish-Tuesday"    (Club. "Spanish" "Tuesday", "A", "Spanish - Tuesday", [[] []], :repeatable, 3)
+                                       "German-Wednesday"   (Club. "German", "Wednesday" "A", "German - Wednesday", [[] []], :repeatable, 3)
+                                       "Mandarin-Wednesday" (Club. "Mandarin" "Wednesday", "A", "Mandarin - Wednesday", [[] []], :repeatable, 3)}
                               :pupils {"Tom A" (Pupil. (time/date-time 2018 10 1 1) "Tom A", "P4A", [["French (Tuesday) - A" "Spanish (Tuesday) - A" "German (Wednesday) - A"] ["French (Tuesday) - A" "Spanish (Tuesday) - A" "German (Wednesday) - A"]] [[] []])
                                        "Tom B" (Pupil. (time/date-time 2018 10 1 2) "Tom B", "P4B", [["French (Tuesday) - A" "Spanish (Tuesday) - A" "German (Wednesday) - A"] ["French (Tuesday) - A" "Spanish (Tuesday) - A" "German (Wednesday) - A"]] [[] []])
                                        "Tom C" (Pupil. (time/date-time 2018 10 1 3) "Tom C", "P6A", [["French (Tuesday) - A" "Spanish (Tuesday) - A" "German (Wednesday) - A"] ["French (Tuesday) - A" "Spanish (Tuesday) - A" "German (Wednesday) - A"]] [[] []])
@@ -24,7 +24,19 @@
       (is (= ["Tom G" "Tom H" "Tom C"] (first (:allocations ((:clubs response) "French-Tuesday")))))
       (is (= ["Tom D" "Tom E" "Tom F"] (first (:allocations ((:clubs response) "Spanish-Tuesday")))))
       (is (= ["Tom J" "Tom A" "Tom B"] (first (:allocations ((:clubs response) "German-Wednesday")))))
-      (is (= ["French"] (map :name (first (:allocations ((:pupils response) "Tom G"))))))
-      (is (= ["Spanish"] (map :name (first (:allocations ((:pupils response) "Tom D"))))))
-      ))
-  )
+      (is (= ["French (Tuesday) - A"] (first (:allocations ((:pupils response) "Tom G")))))
+      (is (= ["Spanish (Tuesday) - A"] (first (:allocations ((:pupils response) "Tom D")))))))
+  
+  (testing "process and allocate"
+    (let [result (allocate (process-input "resources/example-one.txt"))]
+      (is (= (first (:allocations ((:clubs result) "French-Tuesday"))) 
+             ["Tom Trrx" "Tom Ztau" "Tom Esiz" "Tom Xfeo" "Tom Onzl"
+              "Tom Mjpy" "Tom Rymw" "Tom Qruy" "Tom Dsgs" "Tom Qiit"
+              "Tom Ozae" "Tom Oozb" "Tom Rfgn" "Tom Kgpe" "Tom Ybvr"
+              "Tom Dlye" "Tom Zzvy" "Tom Ralw" "Tom Vmeh" "Tom Uzwi"]))
+      (is (every? #(and (>= 20 (count (first %))) (>= 20 (count (second %)))) (map :allocations (vals (:clubs result))))))))
+  
+  
+  
+      
+  

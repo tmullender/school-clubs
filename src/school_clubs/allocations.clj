@@ -8,7 +8,7 @@
 
 (defrecord Pupil [timestamp name group requests allocations])
 
-(defrecord Club [name day teacher allocations type size])
+(defrecord Club [name day teacher key allocations type size])
 
 
 (defn capitalize-words [s]
@@ -20,9 +20,8 @@
 (defn create-pupil [t n g & p]
   (let [pt (time/parse (time/formatter "yyyy/MM/dd hh:mm:ss aa ZZZ") t)
         cn (string/trim (capitalize-words n))]
-    (Pupil. pt cn g (partition 3 p) [[] []]))
-  )
-
+    (Pupil. pt cn g (partition 3 p) [[] []])))
+  
 
 (defn club-pattern [description]
   (rest (re-matches #"([^(]+) [^A-Z]+([a-zA-Z]+)[- )]+(.+)" description)))
@@ -32,29 +31,31 @@
   (str name "-" day))
 
 
-(defn create-club [description]
-  (let [club (club-pattern description)]
-    [(club-key club) (apply ->Club (concat club [[[] []] :repeatable 20]))])
-  )
+(defn club-day [request]
+  (second (club-pattern request)))
 
+
+(defn create-club [description]
+  (let [club (club-pattern description)
+        key (club-key club)]
+    [key (apply ->Club (concat club [key [[] []] :repeatable 20]))]))
+  
 
 (defn parse [input]
   (with-open [reader (io/reader input)]
     (doall
-      (csv/read-csv reader)))
-  )
-
+      (csv/read-csv reader))))
+  
 
 (defn add-response [collection response]
-  (let [choices (drop 3 response)]
+  (let [choices (drop 3 response)
+        pupil (apply create-pupil response)]
     (-> collection
-        (update :pupils #(assoc % (second response) (apply create-pupil response)))
+        (update :pupils #(assoc % (:name pupil) pupil))
         (update :clubs #(into % (filter not-empty choices)))
         (update :groups #(conj % (nth response 2)))
-        (assoc :terms (/ (count choices) max-preference-count))
-        ))
-  )
-
+        (assoc :terms (/ (count choices) max-preference-count)))))
+        
 
 (defn sort-responses [responses]
   (sort-by #(.getMillis (.plusYears (:timestamp %) (- (int (second (:group %)))))) < responses))
@@ -66,13 +67,11 @@
          (parse)
          (rest)
          (reduce add-response {:pupils {} :clubs #{} :groups #{}}))
-    (update :clubs #(into {} (map create-club %)))
-    )
-  )
-
+    (update :clubs #(into {} (map create-club %)))))
+    
 
 (defn pupil-free [term day pupil]
-  (not-any? #(= day (:day %)) (nth (:allocations pupil) term)))
+  (not-any? #(= day (club-day %)) (nth (:allocations pupil) term)))
 
 
 (defn space? [term club]
@@ -93,25 +92,23 @@
             currentPupils (nth (:allocations club) term)
             currentClubs (nth (:allocations pupil) term)
             updatedClub (update club :allocations #(assoc % term (conj currentPupils (:name pupil))))
-            updatedPupil (update pupil :allocations #(assoc % term (conj currentClubs club)))]
-        (println "Allocated" (:name club) "to" (:name pupil))
+            updatedPupil (update pupil :allocations #(assoc % term (conj currentClubs request)))]
+        ;(println "Allocated" (:name club) "to" (:name pupil))
         (-> allocations
             (update :pupils #(assoc % (:name pupil) updatedPupil))
-            (update :clubs #(assoc % club-id updatedClub)))
-        )
-      allocations)
-    ))
-
+            (update :clubs #(assoc % club-id updatedClub))))
+      allocations)))
+    
 
 (defn allocate
   ([requests] (allocate requests 0 0))
   ([allocations term iteration]
-     (println "Allocating term" (inc term) "and iteration" (inc iteration))
-     (cond
-       (>= term (:terms allocations)) allocations
-       (>= iteration max-preference-count) (allocate allocations (inc term) 0)
-       :else (recur (reduce (partial allocate-one term) allocations (sort-responses (vals (:pupils allocations)))) term (inc iteration))
-       ))
-  )
+   (println "Allocating term" (inc term) "and iteration" (inc iteration) "for" (count (:pupils allocations)) "pupils")
+   (cond
+     (>= term (:terms allocations)) allocations
+     (>= iteration max-preference-count) (allocate allocations (inc term) 0)
+     :else (recur (reduce (partial allocate-one term) allocations (sort-responses (vals (:pupils allocations)))) term (inc iteration)))))
+       
+  
 
 
