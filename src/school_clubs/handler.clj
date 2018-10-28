@@ -2,6 +2,7 @@
   (:require [clojure.data.csv :as csv]
             [clojure.java.io :as io]
             [clojure.string :as string]
+            [clj-pdf.core :refer [pdf template]]
             [compojure.core :refer :all]
             [compojure.route :as route]
             [net.cgrand.enlive-html :as html]
@@ -69,18 +70,55 @@
   (swap! data allocate)
   (allocations))
 
+
 (defn pupil-to-row [pupil]
-  (println (:name pupil))
-  (flatten (:name pupil) (:group pupil) (:alllocations pupil)))
+  (concat [(:name pupil) (:group pupil)] (map (partial string/join " and ") (:allocations pupil))))
 
-(defn csv-writer [out]
-  (csv/write-csv (io/make-writer out {}) (doall pupil-to-row (vals (:pupils @data))))
-  (.flush out))
 
-(defn create-pupil-csv []
-  (piped-input-stream csv-writer))
+(defn csv-writer [data out]
+  (try
+    (with-open [writer (io/writer out)]
+      (csv/write-csv writer data)
+      (.flush writer))
+    (catch Exception e (.printStackTrace e))))
 
-(defn create-club-csv [])
+
+(defn create-pupil-csv [pupils]
+  {:status 200
+   :headers {"Content-Type" "application/csv, application/octet-stream"             
+             "Content-Disposition" "attachment; filename=\"pupils.csv\""}
+   :body (piped-input-stream (partial csv-writer (map pupil-to-row (vals pupils))))})
+  
+
+(defn club-page-template [club]
+  [[:heading {:style {:align :center}} (:name club)]
+   [:heading {:style {:size 12 :align :center}} (str (:teacher club) "-" (:day club))]
+   [:spacer]
+   (into [:paragraph {:align :center} ] cat
+         (map #(vector [:heading {:style {:size 12 :align :center}} (str "Term " (inc %))]
+                       (into [:list {:symbol ""}] (nth (:allocations club) %))
+                       [:spacer]) (range (count (:allocations club)))))
+   [:pagebreak]])
+
+
+(defn create-club-pdf [clubs out]
+  (try
+    (let [data (into [{:title "Clubs" :left-margin 150 :right-margin 150}] cat (map club-page-template (vals clubs)))]
+      (println "Data" data)
+      (pdf data out)
+      (.flush out))  
+    (catch Exception e (.printStackTrace e))))
+      
+      
+(defn download-club-pdf [clubs]
+  {:status 200
+   :headers {"Content-Type" "application/pdf, application/octet-stream"             
+             "Content-Disposition" "attachment; filename=\"clubs.pdf\""}
+   :body (piped-input-stream (partial create-club-pdf clubs))}) 
+       
+
+(defn create-class-pdf [])
+  
 
 (defroutes app-routes
   (GET "/" [] (index))
@@ -88,8 +126,9 @@
   (POST "/allocate" [] (run-allocation))
   (GET "/club/:club-key" [club-key] (view-club ((:clubs @data) club-key)))
   (GET "/class/:class" [class] (view-class class))
-  (GET "/download/pupils" [] (create-pupil-csv))
-  (GET "/download/clubs" [] (create-club-csv))
+  (GET "/download/pupils" [] (create-pupil-csv (:pupils @data)))
+  (GET "/download/clubs" [] (download-club-pdf (:clubs @data)))
+  (GET "/download/class" [] (create-class-pdf))
   (GET "/update/:club-key" [club-key] (edit-club ((:clubs @data) club-key)))
   (route/not-found "Not Found"))
 

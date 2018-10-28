@@ -78,10 +78,17 @@
   (and club (> (:size club) (count (nth (:allocations club) term)))))
 
 
+(defn repeatable? [club pupil]
+  (case (:club type)
+    :repeatable true
+    :repeated true
+    :unrepeatble ))
+
+
 (defn allocatable [term clubs pupil request]
   (let [club-id (club-key (club-pattern request))
         club (clubs club-id)]
-    (and (space? term club) (pupil-free term (:day club) pupil))))
+    (and (space? term club) (pupil-free term (:day club) pupil) (repeatable? club pupil))))
 
 
 (defn allocate-one [term allocations pupil]
