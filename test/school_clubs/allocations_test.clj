@@ -6,10 +6,10 @@
 
 (deftest test-app
   (testing "allocate"
-    (let [response (allocate {:clubs  {"French-Tuesday"     (Club. "French" "Tuesday", "A", "French - Tuesday", [[] []], :repeatable, 3)
-                                       "Spanish-Tuesday"    (Club. "Spanish" "Tuesday", "A", "Spanish - Tuesday", [[] []], :repeatable, 3)
-                                       "German-Wednesday"   (Club. "German", "Wednesday" "A", "German - Wednesday", [[] []], :repeatable, 3)
-                                       "Mandarin-Wednesday" (Club. "Mandarin" "Wednesday", "A", "Mandarin - Wednesday", [[] []], :repeatable, 3)}
+    (let [response (allocate {:clubs  {"French-Tuesday"     (Club. "French" "Tuesday", "A", "French - Tuesday", "French (Tuesday) - A", [[] []], :repeatable, 3)
+                                       "Spanish-Tuesday"    (Club. "Spanish" "Tuesday", "A", "Spanish - Tuesday", "Spanish (Tuesday) - A", [[] []], :repeatable, 3)
+                                       "German-Wednesday"   (Club. "German", "Wednesday" "A", "German - Wednesday", "German (Wednesday) - A", [[] []], :repeatable, 3)
+                                       "Mandarin-Wednesday" (Club. "Mandarin" "Wednesday", "A", "Mandarin - Wednesday", "Mandarin (Wednesday) - A", [[] []], :repeatable, 3)}
                               :pupils {"Tom A" (Pupil. (time/date-time 2018 10 1 1) "Tom A", "P4A", [["French (Tuesday) - A" "Spanish (Tuesday) - A" "German (Wednesday) - A"] ["French (Tuesday) - A" "Spanish (Tuesday) - A" "German (Wednesday) - A"]] [[] []])
                                        "Tom B" (Pupil. (time/date-time 2018 10 1 2) "Tom B", "P4B", [["French (Tuesday) - A" "Spanish (Tuesday) - A" "German (Wednesday) - A"] ["French (Tuesday) - A" "Spanish (Tuesday) - A" "German (Wednesday) - A"]] [[] []])
                                        "Tom C" (Pupil. (time/date-time 2018 10 1 3) "Tom C", "P6A", [["French (Tuesday) - A" "Spanish (Tuesday) - A" "German (Wednesday) - A"] ["French (Tuesday) - A" "Spanish (Tuesday) - A" "German (Wednesday) - A"]] [[] []])

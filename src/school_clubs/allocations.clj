@@ -8,7 +8,7 @@
 
 (defrecord Pupil [timestamp name group requests allocations])
 
-(defrecord Club [name day teacher key allocations type size])
+(defrecord Club [name day teacher key description allocations type size])
 
 
 (defn capitalize-words [s]
@@ -38,7 +38,7 @@
 (defn create-club [description]
   (let [club (club-pattern description)
         key (club-key club)]
-    [key (apply ->Club (concat club [key [[] []] :repeatable 20]))]))
+    [key (apply ->Club (concat club [key description [[] []] :repeatable 20]))]))
   
 
 (defn parse [input]
@@ -70,7 +70,7 @@
     (update :clubs #(into {} (map create-club %)))))
     
 
-(defn pupil-free [term day pupil]
+(defn pupil-free? [term day pupil]
   (not-any? #(= day (club-day %)) (nth (:allocations pupil) term)))
 
 
@@ -79,16 +79,16 @@
 
 
 (defn repeatable? [club pupil]
-  (case (:club type)
+  (case (:type club)
     :repeatable true
     :repeated true
-    :unrepeatble ))
+    :once (not-any? #(= % (:description club)) (apply concat (:allocations pupil)))))
 
 
 (defn allocatable [term clubs pupil request]
   (let [club-id (club-key (club-pattern request))
         club (clubs club-id)]
-    (and (space? term club) (pupil-free term (:day club) pupil) (repeatable? club pupil))))
+    (and (space? term club) (pupil-free? term (:day club) pupil) (repeatable? club pupil))))
 
 
 (defn allocate-one [term allocations pupil]
@@ -100,12 +100,28 @@
             currentClubs (nth (:allocations pupil) term)
             updatedClub (update club :allocations #(assoc % term (conj currentPupils (:name pupil))))
             updatedPupil (update pupil :allocations #(assoc % term (conj currentClubs request)))]
-        ;(println "Allocated" (:name club) "to" (:name pupil))
+        (println "Allocated" (:name club) "to" (:name pupil))
         (-> allocations
             (update :pupils #(assoc % (:name pupil) updatedPupil))
             (update :clubs #(assoc % club-id updatedClub))))
       allocations)))
     
+
+(defn -remove-pupil [club term pupil]
+  (update club :allocations #(update % (Integer/valueOf term) (partial filter (complement #{pupil})))))
+
+
+(defn -add-pupil [club term pupil]
+  (update club :allocations #(update % (Integer/valueOf term) (partial cons pupil))))
+
+
+(defn deallocate [data club term pupil]
+  (update data :clubs #(update % club -remove-pupil term pupil)))
+
+
+(defn allocate-pupil [data club term pupil]
+  (update data :clubs #(update % (:key club) -add-pupil term pupil)))
+
 
 (defn allocate
   ([requests] (allocate requests 0 0))
@@ -115,6 +131,11 @@
      (>= term (:terms allocations)) allocations
      (>= iteration max-preference-count) (allocate allocations (inc term) 0)
      :else (recur (reduce (partial allocate-one term) allocations (sort-responses (vals (:pupils allocations)))) term (inc iteration)))))
+
+(defn config-club [data club-key club type size]
+  (update data :clubs #(assoc % club-key (-> club
+                                            (assoc :type (keyword type))
+                                            (assoc :size (Integer/valueOf size))))))
        
   
 

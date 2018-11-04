@@ -6,12 +6,17 @@
 </head>
 <body>
     <h2>Club Name</h2>
-    <p><span class="teacher">Teacher</span><span class="day">Day</span></p>
+    <p><span class="teacher">Teacher</span> <span class="day">Day</span></p>
     <div class="term">
         <h4>Term</h4>
         <ul class="pupil">
-            <li>Pupil</li>
+            <li><span>Pupil</span> <a href="remove">Remove</a></li>
         </ul>
+        <form method="post" >
+            <input class="name" name="name" type="text" value=""/>
+            <input class="term" name="term" type="hidden" value="term" />
+            <input type="submit" value="Add" />
+        </form>
     </div>
 </body>
 </html>

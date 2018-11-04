@@ -10,16 +10,21 @@
             [ring.middleware.defaults :refer [wrap-defaults site-defaults]]
             [ring.util.anti-forgery :refer [anti-forgery-field]]
             [ring.util.codec :refer [url-encode]]
-            [ring.util.io :refer [piped-input-stream]]))
+            [ring.util.io :refer [piped-input-stream]]
+            [ring.util.response :refer [redirect]]))
 
 (def data (atom {}))
 
 (defn display-type [club]
   (case (:type club)
-    :repeatable "Can be repeated"))
+    :repeatable "Can be repeated"
+    :once "Only once"
+    :repeated "Repeated"))
 
-(defn url [root key]
-  (str root (url-encode key)))
+(defn url
+  ([prefix key] (url prefix key ""))
+  ([prefix key suffix] (str prefix (url-encode key) suffix))
+  )
 
 (html/deftemplate index "templates/index.html" [] [:form#upload] (html/append (html/html-snippet (anti-forgery-field))))
 
@@ -31,7 +36,7 @@
                                                       [:.teacher] (html/content (:teacher (second club)))
                                                       [:.size] (html/content (str (:size (second club))))
                                                       [:.type] (html/content (display-type (second club)))
-                                                      [:a] (html/set-attr :href (url "/update/" (first club)))))
+                                                      [:a] (html/set-attr :href (url "/club/" (first club) "/update"))))
                                                       
 
 (html/deftemplate allocations "templates/allocations.html" []
@@ -42,15 +47,23 @@
                                                     [:a] (html/content group)
                                                     [:a] (html/set-attr :href (url "/class/" group))))
 
-(html/deftemplate edit-club "templates/edit-club.html" [club])
+(html/deftemplate edit-club "templates/edit-club.html" [club-key club]
+                  [:form] (html/append (html/html-snippet (anti-forgery-field)))
+                  [:h2] (html/content (:name club))
+                  [:span.teacher] (html/content (:teacher club))
+                  [:span.day] (html/content (:day club)))
 
-(html/deftemplate view-club "templates/view-club.html" [club]
+(html/deftemplate view-club "templates/view-club.html" [key club]
                   [:h2] (html/content (:name club))
                   [:span.teacher] (html/content (:teacher club))
                   [:span.day] (html/content (:day club))
                   [:div.term] (html/clone-for [i (range (count (:allocations club)))]
-                                              [:h4] (html/content (str "Term " i))
-                                              [:ul :li] (html/clone-for [name (nth (:allocations club) i)] (html/content name))))
+                                              [:form] (html/append (html/html-snippet (anti-forgery-field)))
+                                              [:h4] (html/content (str "Term " (inc i)))
+                                              [:input.term] (html/set-attr :value i)
+                                              [:ul :li] (html/clone-for [name (nth (:allocations club) i)]
+                                                                        [:span] (html/content name)
+                                                                        [:a] (html/set-attr :href (str "/club/" key "/" i "/" name "/remove")))))
                   
 
 (html/deftemplate view-class "templates/view-class.html" [class]
@@ -64,11 +77,12 @@
   (println "Content:" content)
   (reset! data (process-input (get-in content [:csv-upload :tempfile])))
   (println @data)
-  (clubs (:clubs @data)))
+  (redirect "/clubs"))
 
 (defn run-allocation []
   (swap! data allocate)
-  (allocations))
+  (println @data)
+  (redirect "/allocations"))
 
 
 (defn pupil-to-row [pupil]
@@ -90,46 +104,65 @@
    :body (piped-input-stream (partial csv-writer (map pupil-to-row (vals pupils))))})
   
 
-(defn club-page-template [club]
+(defn club-page-template [club term]
   [[:heading {:style {:align :center}} (:name club)]
    [:heading {:style {:size 12 :align :center}} (str (:teacher club) "-" (:day club))]
+   [:heading {:style {:size 12 :align :center}} (str "Term " (inc term))]
    [:spacer]
-   (into [:paragraph {:align :center} ] cat
-         (map #(vector [:heading {:style {:size 12 :align :center}} (str "Term " (inc %))]
-                       (into [:list {:symbol ""}] (nth (:allocations club) %))
-                       [:spacer]) (range (count (:allocations club)))))
+   (into [:list {:symbol ""}] (nth (:allocations club) term))
    [:pagebreak]])
 
 
-(defn create-club-pdf [clubs out]
+(defn create-club-pdf [clubs terms out]
   (try
-    (let [data (into [{:title "Clubs" :left-margin 150 :right-margin 150}] cat (map club-page-template (vals clubs)))]
+    (let [pages (for [x (vals clubs) y (range terms)] (club-page-template x y))
+          data (into [{:title "Clubs"}] cat pages)]
       (println "Data" data)
       (pdf data out)
       (.flush out))  
     (catch Exception e (.printStackTrace e))))
       
       
-(defn download-club-pdf [clubs]
+(defn download-club-pdf [clubs terms]
   {:status 200
    :headers {"Content-Type" "application/pdf, application/octet-stream"             
              "Content-Disposition" "attachment; filename=\"clubs.pdf\""}
-   :body (piped-input-stream (partial create-club-pdf clubs))}) 
+   :body (piped-input-stream (partial create-club-pdf clubs terms))})
        
 
 (defn create-class-pdf [])
+
+
+(defn add-pupil [initial club-key club term pupil]
+  (let [updated (swap! initial allocate-pupil club term pupil)]
+    (view-club club-key ((:clubs updated) club-key))))
+
+
+(defn remove-pupil [initial club term pupil]
+  (swap! initial deallocate club term pupil)
+  (redirect (str "/club/" club)))
+
+
+(defn update-club [club-key club type size]
+  (swap! data config-club club-key club type size)
+  (redirect "/clubs"))
   
 
 (defroutes app-routes
   (GET "/" [] (index))
   (POST "/upload" {params :params} (upload params))
   (POST "/allocate" [] (run-allocation))
-  (GET "/club/:club-key" [club-key] (view-club ((:clubs @data) club-key)))
+  (GET "/allocations" [] (allocations))
+  (GET "/clubs" [] (clubs (:clubs @data)))
+  (GET "/club/:club-key" [club-key] (view-club club-key ((:clubs @data) club-key)))
+  (POST "/club/:club-key" [club-key name term] (add-pupil data club-key ((:clubs @data) club-key) term name))
+  (GET "/club/:club-key/update" [club-key] (edit-club club-key ((:clubs @data) club-key)))
+  (POST "/club/:club-key/update" [club-key type size] (update-club club-key ((:clubs @data) club-key) type size))
+  (GET "/club/:club-key/:term/:pupil/remove" [club-key term pupil] (remove-pupil data club-key term pupil))
   (GET "/class/:class" [class] (view-class class))
   (GET "/download/pupils" [] (create-pupil-csv (:pupils @data)))
-  (GET "/download/clubs" [] (download-club-pdf (:clubs @data)))
+  (GET "/download/clubs" [] (download-club-pdf (:clubs @data) (:terms @data)))
   (GET "/download/class" [] (create-class-pdf))
-  (GET "/update/:club-key" [club-key] (edit-club ((:clubs @data) club-key)))
   (route/not-found "Not Found"))
 
 (def app
