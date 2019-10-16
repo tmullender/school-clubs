@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>School Clubs</title>
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self';" />
+  <link rel="stylesheet" href="index.css">
+</head>
+
+<body>
+  <!-- Tab links -->
+  <div class="tab">
+    <button class="tablinks" data-tab-id="Clubs">Clubs</button>
+    <button class="tablinks" data-tab-id="Classes">Classes</button>
+    <button class="tablinks" data-tab-id="Pupils">Pupils</button>
+  </div>
+
+  <!-- Tab content -->
+  <div id="Clubs" class="tabcontent">
+    <div id="clubList" class="list" >
+    </div>
+    <div class="selected" >
+        <p class="count">Count: <span id="clubCount"></span></p>
+        <div id="selectedClubList" class="selectedList"></div>
+    </div>
+  </div>
+
+  <div id="Classes" class="tabcontent">
+    <div id="classList" class="list" >
+    </div>
+    <div class="selected" >
+        <p class="count">Count: <span id="classCount" ></span></p>
+        <div id="selectedClassList" class="selectedList"></div>
+    </div>
+  </div>
+
+  <div id="Pupils" class="tabcontent">
+    <div id="pupilList" class="list" >
+    </div>
+    <div class="selected" >
+      <p id="selectedClass" class="class"></p>
+      <p id="selectedTime" class="timestamp"></p>
+      <p>Requested</p>
+      <div id="selectedRequests" class="requests"></div>
+      <p>Allocated</p>
+      <div id="selectedAllocations" class="allocated"></div>
+    </div>
+  </div>
+
+  <div id="setupModal" class="modal">
+    <div class="modal-content">
+      <h1>Hello!</h1>
+      <p>Let's get started by working out where the response data is and where you'd like any output saved</p>
+      <div class="csv-file">
+          <input type="button" id="csv-file-select" value="Choose a CSV file" />
+          <input type="text" id="csv-file-path" disabled="disabled" placeholder="Click the button to tell me" />
+      </div>
+      <div class="message">
+        <p id="setupErrorMessage"></p>
+      </div>
+      <input type="button" id="start" value="Start" />
+    </div>
+  </div>
+
+  <div id="configurationModal" class="modal">
+    <div class="modal-content" >
+      <div id="clubConfigurations"></div>
+      <div class="actions">
+        <input type="button" id="save" value="Save" />
+        <input type="button" id="allocate" value="Allocate" />
+      </div>
+    </div>
+  </div>
+
+  <div id="allocatingModal" class="modal" >
+    <div class="modal-content" >
+      <h3>loading...</h3>
+    </div>
+  </div>
+
+  <div id="data" data-pupils="" data-classes="" data-clubs="" ></div>
+  <script src="./renderer.js"></script>
+</body>
+
+</html>
