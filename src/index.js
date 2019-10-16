@@ -47,24 +47,20 @@ class Club {
     this.description = this.name + ' (' + this.day + ')';
     this.allocated = [];
   }
-
-  hasSpace() {
-    return ;
-  }
 }
 
 class Pupil {
   constructor(row, clubs) {
-    this.timestamp = parseTime(row['Time']);
+    this.time = parseTime(row['Time']);
+    this.timestamp = this.time.toLocaleString();
     this.name = row['Name'].trim();
     this.class = row['Class'];
     this.year = +this.class.charAt(1);
-    this.index = this.timestamp.getTime() - this.year * 1000*60*60*24*365; 
+    this.index = this.time.getTime() - this.year * 1000*60*60*24*365; 
     this.count = +row['Count'];
     this.requests = parseClubs(row, clubs);
     this.allocated = [];
   }
-
 }
 
 function hasSpace(club) {
@@ -103,7 +99,7 @@ const createWindow = () => {
   log.info('Creating window');
   mainWindow = new BrowserWindow({
     width: 800,
-    height: 600,
+    height: 800,
     webPreferences: {
       preload: `${__dirname}/preload.js`
     }
