@@ -64,10 +64,14 @@ button {
 /* Modal Content/Box */
 .modal-content {
   background-color: #fefefe;
-  margin: 15% auto; /* 15% from the top and centered */
-  padding: 20px;
   border: 1px solid #888;
-  width: 80%; /* Could be more or less, depending on screen size */
+  left: 50%;
+  margin: 0;
+  padding: 20px;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 80%;
 }
 
 div.list {
@@ -75,12 +79,17 @@ div.list {
   display: inline-block;
   width: 25%;
   height: 100%;
+}
+
+div.scrollable {
+  height: 94%;
   overflow-y: auto;
 }
 
 div.list button {
   border: none;
   background-color: inherit;
+  cursor: pointer;
   vertical-align: top;
   width: 100%;
 }
@@ -127,6 +136,22 @@ div.allocated div {
   vertical-align: top;
 }
 
+div.removable {
+  cursor: pointer;
+}
+
+div.removing {
+  background-color: red;
+}
+
+div.removing:before {
+  content: "Remove ";
+}
+
+div.removing:after {
+  content: "?";
+}
+
 button.selectedListItem {
   border: none;
   background-color: inherit;
@@ -159,6 +184,22 @@ div.actions {
 
 div.actions input {
   padding: 10px;
+}
+
+div.add {
+  padding: 20px;
+  width: 100%;
+}
+
+div.add select {
+  padding: 14px 16px;
+  width: 70%;
+}
+
+input.search {
+  height: 5%;
+  width: 95%;
+  margin: auto;
 }
 
 #data {

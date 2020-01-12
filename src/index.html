@@ -36,7 +36,9 @@
   </div>
 
   <div id="Pupils" class="tabcontent">
-    <div id="pupilList" class="list" >
+    <div class="list" >
+      <div id="pupilList" class="scrollable"></div>
+      <input id="search" type="text" class="search" placeholder="Search by name"/>
     </div>
     <div class="selected" >
       <p id="selectedClass" class="class"></p>
@@ -45,13 +47,17 @@
       <div id="selectedRequests" class="requests"></div>
       <h3>Allocated</h3>
       <div id="selectedAllocations" class="allocated"></div>
+      <div class="add">
+        <select id="availableClubs"></select>
+        <button id="addClub">Add</button>
+      </div>
     </div>
   </div>
 
   <div id="setupModal" class="modal">
     <div class="modal-content">
       <h1>Hello!</h1>
-      <p>Let's get started by working out where the response data is and where you'd like any output saved</p>
+      <p>Let's get started by working out where the response data is</p>
       <div class="csv-file">
           <input type="button" id="csv-file-select" value="Choose a CSV file" />
           <input type="text" id="csv-file-path" disabled="disabled" placeholder="Click the button to tell me" />

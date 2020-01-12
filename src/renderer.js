@@ -35,6 +35,30 @@ document.getElementById('save').addEventListener('click', () => {
     window.saveClubs(clubs);
 });
 
+document.getElementById('search').addEventListener('keyup', (event) => {
+    let pupils = document.getElementById('pupilList').getElementsByTagName('button');
+    Array.prototype.forEach.call(pupils, pupil => {
+        if (pupil.dataset.id.toLowerCase().indexOf(event.srcElement.value.toLowerCase()) > -1) {
+            pupil.style.display = "";
+        } else {
+            pupil.style.display = "none";
+        }
+    })
+});
+
+document.getElementById('addClub').addEventListener('click', (event) => {
+    let pupils = JSON.parse(dataNode.dataset.pupils);
+    let clubs = JSON.parse(dataNode.dataset.clubs);
+    let pupil = event.srcElement.dataset.id;
+    let club = document.getElementById('availableClubs').value;
+    console.log('Adding ' + pupil + ' to ' + club);
+    clubs[club].allocated.push(pupil);
+    pupils[pupil].allocated.push(club);
+    dataNode.dataset.clubs = JSON.stringify(clubs);
+    dataNode.dataset.pupils = JSON.stringify(pupils);
+    window.selectPupil(event);
+});
+
 function collectClubData() {
     let clubs = JSON.parse(dataNode.dataset.clubs);
     let configurations = document.getElementById('clubConfigurations');

@@ -1,17 +1,16 @@
-const { dialog } = require('electron').remote;
+const { dialog, BrowserWindow } = require('electron').remote;
 const ipc = require('electron').ipcRenderer;
 const log = require('electron-log');
 
 log.info('Running preload');
 
 window.selectFile = (properties, element) => {
-    dialog.showOpenDialog({ properties: properties }, function (fileNames) {
-        if(fileNames === undefined || fileNames[0] === undefined) {
-            console.log("No file selected");
-        } else {
-            element.value = fileNames[0];
-        }
-    });
+    let fileNames = dialog.showOpenDialogSync(BrowserWindow.getFocusedWindow(), { properties: properties })
+    if(fileNames === undefined || fileNames[0] === undefined) {
+        console.log("No file selected");
+    } else {
+        element.value = fileNames[0];
+    }
 }
 
 window.startAllocation = (input) => {
@@ -93,6 +92,17 @@ ipc.on('allocation-complete', (event, data) => {
     document.getElementById('allocatingModal').style.display = "none";
 }); 
 
+ipc.on('export-data', (event) => {
+    let location = { value: '' }
+    window.selectFile(['openDirectory'], location)
+    let data = document.getElementById('data').dataset;
+    ipc.send('export-data', location.value, { pupils: JSON.parse(data.pupils), clubs: JSON.parse(data.clubs), classes: JSON.parse(data.classes) })
+});
+
+ipc.on('export-complete', (event, path) => {
+    dialog.showMessageBoxSync(null, { title: 'Export Complete', message: 'PDFs exported to ' + path, buttons: ["OK"] });
+})
+
 function reloadData() {
     let data = document.getElementById('data');
     let clubList = document.getElementById('clubList');
@@ -122,7 +132,7 @@ function reloadData() {
         button.setAttribute('class', 'selectable');
         button.setAttribute('data-id', pupil);
         button.innerHTML = pupil;
-        button.addEventListener('click', selectPupil);
+        button.addEventListener('click', window.selectPupil);
         pupilList.appendChild(button);
     }
 }
@@ -139,7 +149,7 @@ function selectClub(event) {
         button.setAttribute('class', 'selectedListItem');
         button.setAttribute('data-id', pupil);
         button.innerHTML = pupil + ' (' + pupils[pupil].class + ')';
-        button.addEventListener('click', selectPupil)
+        button.addEventListener('click', window.selectPupil)
         list.appendChild(button);
     }
     document.getElementById('clubCount').innerHTML = club.allocated.length;
@@ -147,7 +157,7 @@ function selectClub(event) {
     Array.prototype.forEach.call(buttons, element => {
         element.className = element.className.replace(" active", "");
     });
-    document.getElementById('Pupils').dataset.selected = club.key;
+    document.getElementById('Clubs').dataset.selected = club.key;
     event.currentTarget.className += " active";
 }
 
@@ -162,7 +172,7 @@ function selectClass(event) {
         button.setAttribute('class', 'selectedListItem');
         button.setAttribute('data-id', pupil);
         button.innerHTML = pupil;
-        button.addEventListener('click', selectPupil)
+        button.addEventListener('click', window.selectPupil)
         list.appendChild(button);
     }
     document.getElementById('classCount').innerHTML = clazz.length;
@@ -174,7 +184,7 @@ function selectClass(event) {
     event.currentTarget.className += " active";
 }
 
-function selectPupil(event) {
+window.selectPupil = (event) => {
     let pupils = JSON.parse(dataNode.dataset.pupils);
     let clubs = JSON.parse(dataNode.dataset.clubs);
     let pupil = pupils[event.srcElement.dataset.id];
@@ -194,6 +204,18 @@ function selectPupil(event) {
     for (let request of pupil.allocated) {
         let div = document.createElement('div');
         div.innerHTML = clubs[request].description;
+        div.className += "removable"
+        div.dataset.id = pupil.name;
+        div.dataset.club = request;
+        div.addEventListener('click', (event) => {
+            let removing = event.srcElement;
+            if (removing.className.indexOf(" removing") > -1) {
+                remove(event);
+            } else {
+                event.srcElement.className += " removing";
+                setTimeout(() => removing.className = removing.className.replace(" removing", ""), 3000);
+            }
+        });
         requests.appendChild(div);
     }
     let buttons = document.getElementById('pupilList').getElementsByTagName('button')
@@ -203,6 +225,30 @@ function selectPupil(event) {
             element.className += " active";
         } 
     });
+    let clubList = document.getElementById('availableClubs');
+    if (!clubList.hasChildNodes()) {
+        Object.values(clubs).forEach(club => {
+            let option = document.createElement('option');
+            option.innerHTML = club.description;
+            option.setAttribute('value', club.key);
+            clubList.appendChild(option);
+        })
+    }
+    document.getElementById('addClub').dataset.id = pupil.name;
     document.getElementById('Pupils').dataset.selected = pupil.name;
     window.switchTab('Pupils');
+}
+
+function remove(event) {
+    let club = event.srcElement.dataset.club;
+    let pupil = event.srcElement.dataset.id;
+    let pupils = JSON.parse(dataNode.dataset.pupils);
+    let clubs = JSON.parse(dataNode.dataset.clubs);
+    console.log('Removing ' + pupil + ' from ' + club);
+    clubs[club].allocated = clubs[club].allocated.filter(i => i != pupil);
+    pupils[pupil].allocated = pupils[pupil].allocated.filter(i => i != club);
+    dataNode.dataset.clubs = JSON.stringify(clubs);
+    dataNode.dataset.pupils = JSON.stringify(pupils);
+    window.selectPupil(event);
+
 }

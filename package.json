@@ -1,8 +1,8 @@
 {
-  "name": "school-clubs-app",
-  "productName": "school-clubs-app",
+  "name": "school-clubs",
+  "productName": "School Clubs",
   "version": "1.0.0",
-  "description": "My Electron application description",
+  "description": "An app to help assign pupils to clubs",
   "main": "src/index.js",
   "scripts": {
     "start": "electron-forge start",
@@ -20,12 +20,15 @@
   "license": "MIT",
   "config": {
     "forge": {
-      "packagerConfig": {},
+      "packagerConfig": {
+        "executableName": "school-clubs",
+        "icon": "src/images/kps.png"
+      },
       "makers": [
         {
           "name": "@electron-forge/maker-squirrel",
           "config": {
-            "name": "school_clubs_app"
+            "name": "school_clubs"
           }
         },
         {
@@ -49,7 +52,9 @@
     "csv-parser": "^2.3.0",
     "electron-store": "^5.0.0",
     "electron-log": "^3.0.8",
-    "electron-squirrel-startup": "^1.0.0"
+    "electron-squirrel-startup": "^1.0.0",
+    "fast-csv": "^3.4.0",
+    "pdfkit": "^0.10.0"
   },
   "devDependencies": {
     "@electron-forge/cli": "^6.0.0-beta.45",

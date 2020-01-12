@@ -1,14 +1,27 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
-const csv = require('csv-parser');
+const { app, BrowserWindow, ipcMain, Menu } = require('electron');
 const log = require('electron-log');
-const fs = require('fs');
 const Store = require('electron-store');
+const csv = require('fast-csv');
+const fs = require('fs');
+const PDFDocument = require('pdfkit');
 
 const PREFERENCE_COUNT = 3;
 const store = new Store();
 
+const template = [
+  { label: 'File', submenu: [ { role: 'reload', label: 'New' }, 
+                              { label: 'Export', click: exportData }, 
+                              { label: 'Save'}, 
+                              { type: 'separator' },
+                              { role: 'Quit'}]},
+  { role: 'viewMenu' },
+  { role: 'windowMenu' },
+]
+const menu = Menu.buildFromTemplate(template)
+Menu.setApplicationMenu(menu)
+
 String.prototype.capitalize = function() {
-  return this.replace(/(?:^|\s)\S/g, function(a) { return a.toUpperCase(); });
+  return this.toLowerCase().replace(/(?:^|\s)\S/g, function(a) { return a.toUpperCase(); });
 };
 
 function parseTime(timestamp) {
@@ -38,7 +51,7 @@ function parseClubs(row, clubs) {
 class Club {
   constructor(description, term) {
     let parts = description.split(/[()-]/)
-    this.name = parts[0].trim().capitalize();
+    this.name = parts[0].trim();
     this.staff = parts[2].trim();
     this.day = parts[1].trim();
     this.term = term;
@@ -53,7 +66,7 @@ class Pupil {
   constructor(row, clubs) {
     this.time = parseTime(row['Time']);
     this.timestamp = this.time.toLocaleString();
-    this.name = row['Name'].trim();
+    this.name = row['Name'].trim().capitalize();
     this.class = row['Class'];
     this.year = +this.class.charAt(1);
     this.index = this.time.getTime() - this.year * 1000*60*60*24*365; 
@@ -98,8 +111,11 @@ const createWindow = () => {
   // Create the browser window.
   log.info('Creating window');
   mainWindow = new BrowserWindow({
-    width: 800,
     height: 800,
+    icon: `${__dirname}/images/kps.png`,
+    minWidth: 600,
+    minHeight: 600,
+    width: 800,
     webPreferences: {
       preload: `${__dirname}/preload.js`
     }
@@ -107,46 +123,39 @@ const createWindow = () => {
 
   // and load the index.html of the app.
   mainWindow.loadURL(`file://${__dirname}/index.html`);
-  mainWindow.setMenuBarVisibility(false);
 
   // Emitted when the window is closed.
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
+
+  let pupils = store.get('pupils');
+  if (pupils) {
+    ipcMain.send('allocation-complete', { pupils: pupils, clubs: store.get('clubs')});
+  }
   log.info('Window created');
 };
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
 app.on('ready', createWindow);
 
 // Quit when all windows are closed.
 app.on('window-all-closed', () => {
-  // On OS X it is common for applications and their menu bar
-  // to stay active until the user quits explicitly with Cmd + Q
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+  app.quit();
 });
 
 app.on('activate', () => {
-  // On OS X it's common to re-create a window in the app when the
-  // dock icon is clicked and there are no other windows open.
   if (mainWindow === null) {
     createWindow();
   }
 });
 
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and import them here.
 ipcMain.on('start-allocation', (event, input) => {
   log.info('Starting... ' + input);
   let pupils = {};
-  let clubs = loadClubs();
+  let clubs = store.get('clubs', {});
   let classes = {};
   fs.createReadStream(input)
-    .pipe(csv({ 
+    .pipe(csv.parse({ 
       headers: ['Time', 'Name', 'Class', '1', '2', '3', 'Count'],
       skipLines: 1
     }))
@@ -155,9 +164,11 @@ ipcMain.on('start-allocation', (event, input) => {
       let pupil = new Pupil(row, clubs);
       pupils[pupil.name] = pupil;
       if (!classes[pupil.class]) {
-        classes[pupil.class] = []
+        classes[pupil.class] = [];
       }
-      classes[pupil.class].push(pupil.name);
+      if (!classes[pupil.class].includes(pupil.name)) {
+        classes[pupil.class].push(pupil.name);
+      }
     })
     .on('end', () => {
       log.debug('Sending allocation complete message');
@@ -183,14 +194,39 @@ function allocate(pupils, clubs) {
 }
 
 ipcMain.on('save-clubs', (event, data) => {
-  saveClubs(data);
+  store.set('clubs', data);
+  log.info(store.path);
 })
 
-function loadClubs() {
-  return store.get('clubs', {});
+function exportData() {
+  mainWindow.send('export-data');
 }
 
-function saveClubs(clubs) {
-  store.set('clubs', clubs);
-  log.info(store.path);
-}
+ipcMain.on('export-data', (event, path, data) => {
+  let classesDoc = new PDFDocument({ size: 'A4' });
+  classesDoc.pipe(fs.createWriteStream(path + '/classes.pdf'));
+  Object.keys(data.classes).forEach(className => {
+    classesDoc.fontSize(24).text(className);
+    classesDoc.fontSize(12);
+    let clazz = data.classes[className].flatMap(pupil => [pupil, data.pupils[pupil].allocated.map(club => data.clubs[club].description)]);
+    classesDoc.list(clazz, { bulletRadius: 1, columns: 2 });
+    classesDoc.addPage();
+  });
+  classesDoc.end();
+  let clubsDoc = new PDFDocument({ size: 'A4' });
+  clubsDoc.pipe(fs.createWriteStream(path + '/clubs.pdf'));
+  Object.values(data.clubs).forEach(club => {
+    clubsDoc.fontSize(24).text(club.description)
+    clubsDoc.fontSize(12);
+    clubsDoc.list(club.allocated.map(pupil => pupil + " (" + data.pupils[pupil].class + ")"), { bulletRadius: 1, columns: 2 })
+    clubsDoc.addPage();
+  })
+  clubsDoc.end();
+  const stream = csv.format({headers: true})
+  stream.pipe(fs.createWriteStream(path + '/pupils.csv')).on('end', () => {
+    mainWindow.send('export-complete', path);
+  });
+  Object.values(data.pupils).forEach(pupil => {
+    stream.write({'Name': pupil.name, 'Class': pupil.class})
+  }) 
+})
