@@ -158,6 +158,10 @@ button.selectedListItem {
   width: 90%;
 }
 
+button.unallocated {
+  color: rgb(192, 36, 36);
+}
+
 p.count {
   display: inline-block;
 }

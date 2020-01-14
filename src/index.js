@@ -48,6 +48,26 @@ function parseClubs(row, clubs) {
     }, []);
 }
 
+function loadPrevious(event, input, callback) {
+  let previous = store.get('previousResult')
+  if (previous) {
+    let allocated = {}
+    fs.createReadStream(previous)
+    .pipe(csv.parse({ 
+      headers: ['Name', 'Class', 'Allocations'],
+    }))
+    .on('data', (row) => { 
+      log.debug(row);
+      allocated[row['Name'].toLowerCase().trim()] = row['Allocations']
+    })
+    .on('end', () => {
+      callback(event, input, allocated);
+    }); 
+  } else {
+    callback(event, input, {});
+  }
+}
+
 class Club {
   constructor(description, term) {
     let parts = description.split(/[()-]/)
@@ -59,11 +79,12 @@ class Club {
     this.key = this.name + this.day + this.term;
     this.description = this.name + ' (' + this.day + ')';
     this.allocated = [];
+    this.wanted = [];
   }
 }
 
 class Pupil {
-  constructor(row, clubs) {
+  constructor(row, clubs, previous) {
     this.time = parseTime(row['Time']);
     this.timestamp = this.time.toLocaleString();
     this.name = row['Name'].trim().capitalize();
@@ -72,6 +93,13 @@ class Pupil {
     this.index = this.time.getTime() - this.year * 1000*60*60*24*365; 
     this.count = +row['Count'];
     this.requests = parseClubs(row, clubs);
+    let previouslyAllocated = previous[this.name.toLowerCase()];
+    let firstPreference = clubs[this.requests[0]].name;
+    log.debug('Previously allocated for ' + this.name + '(' + firstPreference + '):' + previouslyAllocated);
+    if (previouslyAllocated && previouslyAllocated.includes(firstPreference)) {
+      log.warn("Adjusting index for previously allocated club");
+      this.index += 1000*60*60*24*365*5;
+    }
     this.allocated = [];
   }
 }
@@ -87,11 +115,14 @@ function isFree(pupil, day, clubs) {
 function allocatePupil(pupil, clubs) {
   let success = pupil.requests.some(clubKey => {
     let club = clubs[clubKey];
-    if (club && hasSpace(club) && isFree(pupil, club.day, clubs)){
-      log.debug('Allocating ' + club.name + ' for ' + pupil.name);
-      pupil.allocated.push(club.key);
-      club.allocated.push(pupil.name);
-      return true;
+    if (club && isFree(pupil, club.day, clubs)) {
+      if (hasSpace(club)) {
+        log.debug('Allocating ' + club.name + ' for ' + pupil.name);
+        pupil.allocated.push(club.key);
+        club.allocated.push(pupil.name);
+        return true;
+      } 
+      club.wanted.push(pupil.name);
     }
     return false;
   });
@@ -149,7 +180,7 @@ app.on('activate', () => {
   }
 });
 
-ipcMain.on('start-allocation', (event, input) => {
+function startAllocation(event, input, previous) {
   log.info('Starting... ' + input);
   let pupils = {};
   let clubs = store.get('clubs', {});
@@ -161,7 +192,7 @@ ipcMain.on('start-allocation', (event, input) => {
     }))
     .on('data', (row) => { 
       log.debug(row);
-      let pupil = new Pupil(row, clubs);
+      let pupil = new Pupil(row, clubs, previous);
       pupils[pupil.name] = pupil;
       if (!classes[pupil.class]) {
         classes[pupil.class] = [];
@@ -174,6 +205,11 @@ ipcMain.on('start-allocation', (event, input) => {
       log.debug('Sending allocation complete message');
       event.reply('read-complete', { pupils: pupils, clubs: clubs, classes: classes });
     });
+}
+
+ipcMain.on('start-allocation', (event, input) => {
+  log.info('Starting... ' + input);
+  loadPrevious(event, input, startAllocation);
 });
 
 ipcMain.on('allocate', (event, data) => {
@@ -203,13 +239,38 @@ function exportData() {
 }
 
 ipcMain.on('export-data', (event, path, data) => {
+  createPDF(path, data);
+});
+
+
+function createPDF(path, data) {
   let classesDoc = new PDFDocument({ size: 'A4' });
   classesDoc.pipe(fs.createWriteStream(path + '/classes.pdf'));
   Object.keys(data.classes).forEach(className => {
-    classesDoc.fontSize(24).text(className);
+    classesDoc.fontSize(24).text(className, 100, 10);
     classesDoc.fontSize(12);
-    let clazz = data.classes[className].flatMap(pupil => [pupil, data.pupils[pupil].allocated.map(club => data.clubs[club].description)]);
-    classesDoc.list(clazz, { bulletRadius: 1, columns: 2 });
+    classesDoc.text('Name', 30, 60);
+    classesDoc.text('Tuesday', 180, 60);
+    classesDoc.text('Wednesday', 290, 60);
+    classesDoc.text('Thursday', 410, 60);
+    let y = 90;
+    let count = 1;
+    data.classes[className].sort().forEach(pupil => {
+      classesDoc.text(count, 10, y);
+      classesDoc.text(pupil, 30, y);
+      data.pupils[pupil].allocated.forEach(club => {
+        let x = 180;
+        let description = data.clubs[club].description
+        if (description.includes('Wednesday')) {
+          x = 290;
+        } else if (description.includes('Thursday')) {
+          x = 410;
+        }
+        classesDoc.text(data.clubs[club].name, x, y);
+      });
+      y += 20;
+      count++;
+    });
     classesDoc.addPage();
   });
   classesDoc.end();
@@ -218,7 +279,7 @@ ipcMain.on('export-data', (event, path, data) => {
   Object.values(data.clubs).forEach(club => {
     clubsDoc.fontSize(24).text(club.description)
     clubsDoc.fontSize(12);
-    clubsDoc.list(club.allocated.map(pupil => pupil + " (" + data.pupils[pupil].class + ")"), { bulletRadius: 1, columns: 2 })
+    clubsDoc.list(club.allocated.sort().map(pupil => pupil + " (" + data.pupils[pupil].class + ")"), { bulletRadius: 1, columns: 2 })
     clubsDoc.addPage();
   })
   clubsDoc.end();
@@ -227,6 +288,6 @@ ipcMain.on('export-data', (event, path, data) => {
     mainWindow.send('export-complete', path);
   });
   Object.values(data.pupils).forEach(pupil => {
-    stream.write({'Name': pupil.name, 'Class': pupil.class})
+    stream.write({'Name': pupil.name, 'Class': pupil.class, 'Allocation': pupil.allocated.map(key => data.clubs[key].description).join() })
   }) 
-})
+}

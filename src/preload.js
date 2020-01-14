@@ -152,6 +152,14 @@ function selectClub(event) {
         button.addEventListener('click', window.selectPupil)
         list.appendChild(button);
     }
+    for (let pupil of club.wanted) {
+        let button = document.createElement('button');
+        button.setAttribute('class', 'selectedListItem unallocated');
+        button.setAttribute('data-id', pupil);
+        button.innerHTML = pupil + ' (' + pupils[pupil].class + ')';
+        button.addEventListener('click', window.selectPupil)
+        list.appendChild(button);
+    }
     document.getElementById('clubCount').innerHTML = club.allocated.length;
     let buttons = document.getElementById('clubList').getElementsByTagName('button')
     Array.prototype.forEach.call(buttons, element => {
@@ -190,6 +198,7 @@ window.selectPupil = (event) => {
     let pupil = pupils[event.srcElement.dataset.id];
     document.getElementById('selectedClass').innerHTML = pupil.class;
     document.getElementById('selectedTime').innerHTML = pupil.timestamp;
+    document.getElementById('selectedCount').innerHTML = pupil.count;
     let temp = document.getElementById('selectedRequests');
     let requests = temp.cloneNode(false);
     temp.parentNode.replaceChild(requests, temp);
