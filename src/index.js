@@ -11,7 +11,7 @@ const store = new Store();
 const template = [
   { label: 'File', submenu: [ { role: 'reload', label: 'New' }, 
                               { label: 'Export', click: exportData }, 
-                              { label: 'Save'}, 
+                              { label: 'Save', click: saveData }, 
                               { type: 'separator' },
                               { role: 'Quit'}]},
   { role: 'viewMenu' },
@@ -162,7 +162,7 @@ const createWindow = () => {
 
   let pupils = store.get('pupils');
   if (pupils) {
-    ipcMain.send('allocation-complete', { pupils: pupils, clubs: store.get('clubs')});
+    mainWindow.send('allocation-complete', { pupils: pupils, clubs: store.get('clubs')});
   }
   log.info('Window created');
 };
@@ -232,6 +232,18 @@ function allocate(pupils, clubs) {
 ipcMain.on('save-clubs', (event, data) => {
   store.set('clubs', data);
   log.info(store.path);
+})
+
+function saveData() {
+  log.debug('Save called');
+  mainWindow.send('save-data');
+}
+
+ipcMain.on('save-data', (event, pupils, clubs) => {
+  log.debug('Saving data...');
+  store.set('pupils', pupils);
+  store.set('clubs', clubs);
+  log.debug('Saved');
 })
 
 function exportData() {

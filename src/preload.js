@@ -103,6 +103,11 @@ ipc.on('export-complete', (event, path) => {
     dialog.showMessageBoxSync(null, { title: 'Export Complete', message: 'PDFs exported to ' + path, buttons: ["OK"] });
 })
 
+ipc.on('save-data', (event) => {
+    console.log('Sending data to be saved');
+    ipc.send('save-data', JSON.parse(data.dataset.clubs), JSON.parse(data.dataset.clubs))
+})
+
 function reloadData() {
     let data = document.getElementById('data');
     let clubList = document.getElementById('clubList');
